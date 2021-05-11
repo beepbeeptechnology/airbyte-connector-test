@@ -1,0 +1,184 @@
+{
+    "streams": [
+      {
+        "stream": {
+          "name": "tranferwise_profiles_stream",
+          "json_schema": {
+            "$schema": "http://json-schema.org/draft-04/schema#",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "number"
+                },
+                "type": {
+                  "type": "string"
+                },
+                "details": {
+                  "type": "object",
+                  "properties": {
+                    "firstName": {
+                      "type": "string"
+                    },
+                    "lastName": {
+                      "type": "string"
+                    },
+                    "dateOfBirth": {
+                      "type": "string"
+                    },
+                    "phoneNumber": {
+                      "type": "string"
+                    },
+                    "avatar": {
+                      "type": "null"
+                    },
+                    "occupation": {
+                      "type": "null"
+                    },
+                    "occupations": {
+                      "type": "null"
+                    },
+                    "primaryAddress": {
+                      "type": "number"
+                    },
+                    "firstNameInKana": {
+                      "type": "null"
+                    },
+                    "lastNameInKana": {
+                      "type": "null"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "registrationNumber": {
+                      "type": "string"
+                    },
+                    "acn": {
+                      "type": "null"
+                    },
+                    "abn": {
+                      "type": "null"
+                    },
+                    "arbn": {
+                      "type": "null"
+                    },
+                    "companyType": {
+                      "type": "string"
+                    },
+                    "companyRole": {
+                      "type": "string"
+                    },
+                    "descriptionOfBusiness": {
+                      "type": "string"
+                    },
+                    "webpage": {
+                      "type": "null"
+                    },
+                    "businessCategory": {
+                      "type": "string"
+                    },
+                    "businessSubCategory": {
+                      "type": "null"
+                    }
+                  }
+                }
+              },
+              "required": [
+                "id",
+                "type",
+                "details"
+              ]
+            }
+          },
+          "supported_sync_modes": ["full_refresh"]
+        },
+        "sync_mode": "incremental",
+        "destination_sync_mode": "overwrite"
+      },
+      {
+        "stream": {
+          "name": "check_account_balance",
+          "json_schema": {
+            "$schema": "http://json-schema.org/draft-04/schema#",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "number"
+                },
+                "profileId": {
+                  "type": "number"
+                },
+                "recipientId": {
+                  "type": "number"
+                },
+                "creationTime": {
+                  "type": "string"
+                },
+                "modificationTime": {
+                  "type": "string"
+                },
+                "active": {
+                  "type": "boolean"
+                },
+                "eligible": {
+                  "type": "boolean"
+                },
+                "balances": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "balanceType": {
+                        "type": "string"
+                      },
+                      "currency": {
+                        "type": "string"
+                      },
+                      "amount": {
+                        "type": "object",
+                        "properties": {
+                          "value": {
+                            "type": "number"
+                          },
+                          "currency": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      "reservedAmount": {
+                        "type": "object",
+                        "properties": {
+                          "value": {
+                            "type": "number"
+                          },
+                          "currency": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      "bankDetails": {
+                        "type": "null"
+                      }
+                    },
+                    "required": [
+                      "balanceType",
+                      "currency",
+                      "amount",
+                      "reservedAmount",
+                      "bankDetails"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "supported_sync_modes": ["full_refresh"]
+        },
+        "sync_mode": "incremental",
+        "destination_sync_mode": "overwrite"
+      }
+    ]
+  }
