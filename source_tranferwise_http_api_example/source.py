@@ -284,7 +284,7 @@ class SourceTranferwiseHttpApiExample(AbstractSource):
 
 # Then use the following commands to run it
 # docker run --rm airbyte/source-tranferwise-http-api-example:dev-v0.1.0 spec
-# docker run --rm -v $(pwd)/secrets:/config.json airbyte/source-tranferwise-http-api-example:dev-v0.1.0 check --config /secrets/config.json
+# docker run --rm -v $(pwd)/secrets:/secrets airbyte/source-tranferwise-http-api-example:dev-v0.1.0 check --config /secrets/config.json
 # docker run --rm -v $(pwd)/secrets:/secrets airbyte/source-tranferwise-http-api-example:dev-v0.1.0 discover --config /secrets/config.json
 # docker run --rm -v $(pwd)/secrets:/secrets -v $(pwd)/sample_files:/sample_files airbyte/source-tranferwise-http-api-example:dev-v0.1.0 read --config /secrets/config.json --catalog /sample_files/configured_catalog.json
 

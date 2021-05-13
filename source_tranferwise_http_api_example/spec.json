@@ -6,7 +6,7 @@
     "required": ["api_token", "start_date"],
     "additionalProperties": false,
     "properties": {
-      "api_key": {
+      "api_token": {
         "title": "API token - Tranferwise Token",
         "type": "string",
         "description": "The Tranferwise API token to use to hit the API.",
