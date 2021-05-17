@@ -32,7 +32,9 @@ from base_python import AbstractSource, HttpStream, Stream
 from base_python.cdk.streams.auth.core import NoAuth
 from base_python.cdk.streams.auth.token import TokenAuthenticator
 
-# Basic full refresh stream
+# *********************************************************************************** 
+# *********************************** TRANSFERWISE PROFILES *************************
+# ***********************************************************************************
 class TranferwiseProfilesStream(HttpStream):
     # The url base. Required.
     # https://api.sandbox.transferwise.tech/v1/borderless-accounts?profileId=16178458
@@ -81,22 +83,14 @@ class TranferwiseProfilesStream(HttpStream):
         #return {}
 
 
-    def parse_response(
-        self, 
-        response: requests.Response, 
-        stream_state: Mapping[str, Any],
-        stream_slice: Mapping[str, Any] = None,
-        next_page_token: Mapping[str, Any] = None,
-        ) -> Iterable[Mapping]:
+    def parse_response(self, response: requests.Response, **kwargs) -> Iterable[Mapping]:
         """
-        TODO: Override this method to define how a response is parsed.
-        :return an iterable containing each record in the response
-        """
-        #print("response.json(): ", response.json())
-        # The response is a simple JSON whose schema matches our stream's schema exactly, 
-        # so we just return a list containing the response
+        The response is a simple JSON whose schema matches our stream's schema exactly, 
+        The response is a simple JSON whose schema matches our stream's schema exactly,
+        so we just return a list containing the response, an iterable containing each record in the response
+        """ 
         #return [response.json()] # to parse the response from the API to match the schema of our schema .json file.
-        return response.json() # to parse the response from the API to match the schema of our schema .json file.
+        return response.json()
 
 
     def request_params(
@@ -145,7 +139,10 @@ class TranferwiseProfilesStream(HttpStream):
         return self._chunk_date_range(start_date)
 
 
-class CheckAccountBalance(TranferwiseProfilesStream):
+# *********************************************************************************** 
+# *********************************** CHECK PERSONAL ACCOUNT ************************
+# ***********************************************************************************
+class CheckPersonalAccountBalance(TranferwiseProfilesStream):
     
     def path(
         self, 
@@ -169,7 +166,7 @@ class CheckAccountBalance(TranferwiseProfilesStream):
             next_page_token: Mapping[str, Any] = None,
     ) -> MutableMapping[str, Any]:
         # The api requires that we include the base currency as a query param so we do that in this method
-        return {'profileId': '16178458'} # profileId=16178458
+        return {'profileId': '16178458'} # "id": 16178458, "type": "personal" |  "id": 16178459, "type": "business"
         # return {'currency': 'EUR', 'intervalStart': '2018-03-01T00:00:00.000Z', 'intervalEnd': '2018-03-15T23:59:59.999Z', 'type': 'COMPACT'}
 
 
@@ -242,9 +239,97 @@ class CheckAccountBalance(TranferwiseProfilesStream):
         return None
 
 
-# Source
-class SourceTranferwiseHttpApiExample(AbstractSource):
+# *********************************************************************************** 
+# ***********************************CHECK BUSINESS ACCOUNT *************************
+# ***********************************************************************************
+class CheckBusinessAccountBalance(TranferwiseProfilesStream):
+    
+    def path(
+        self, 
+        stream_state: Mapping[str, Any] = None, 
+        stream_slice: Mapping[str, Any] = None, 
+        next_page_token: Mapping[str, Any] = None
+    ) -> str:
+        return "borderless-accounts"
 
+
+    def request_headers(
+        self, stream_state: Mapping[str, Any], stream_slice: Mapping[str, Any] = None, next_page_token: Mapping[str, Any] = None
+    ) -> Mapping[str, Any]:
+        return {'Authorization': f'Bearer {self.api_token}'}
+
+    
+    def request_params(
+            self,
+            stream_state: Mapping[str, Any],
+            stream_slice: Mapping[str, Any] = None,
+            next_page_token: Mapping[str, Any] = None,
+    ) -> MutableMapping[str, Any]:
+        # The api requires that we include the base currency as a query param so we do that in this method
+        return {'profileId': '16178459'} # "id": 16178458, "type": "personal" |  "id": 16178459, "type": "business"
+        # return {'currency': 'EUR', 'intervalStart': '2018-03-01T00:00:00.000Z', 'intervalEnd': '2018-03-15T23:59:59.999Z', 'type': 'COMPACT'}
+
+
+    def parse_response(
+        self, 
+        response: requests.Response, 
+        stream_state: Mapping[str, Any],
+        stream_slice: Mapping[str, Any] = None,
+        next_page_token: Mapping[str, Any] = None,
+        ) -> Iterable[Mapping]:
+        """
+        This method to define how a response is parsed.
+        :return an iterable containing each record in the response
+        """
+        return response.json() # to parse the response from the API to match the schema of our schema .json file.
+
+
+    def get_updated_state(
+        self,
+        current_stream_state: MutableMapping[str, Any],
+        latest_record: Mapping[str, Any]
+        ) -> Mapping[str, Any]:
+        # This method is called once for each record returned from the API to compare the cursor field value in that record with the current state
+        # we then return an updated state object. If this is the first time we run a sync or no state was passed, current_stream_state will be None.
+        if current_stream_state is not None and 'date' in current_stream_state:
+            current_parsed_date = datetime.strptime(current_stream_state['date'], '%Y-%m-%d')
+            latest_record_date = datetime.strptime(latest_record['date'], '%Y-%m-%d')
+            return {'date': max(current_parsed_date, latest_record_date).strftime('%Y-%m-%d')}
+        else:
+            return {'date': self.start_date.strftime('%Y-%m-%d')}
+    
+
+    def _chunk_date_range(self, start_date: datetime) -> List[Mapping[str, Any]]:
+        """
+        Returns a list of each day between the start date and now.
+        The return value is a list of dicts {'date': date_string}.
+        """
+        dates = []
+        while start_date < datetime.now():
+            dates.append({'date': start_date.strftime('%Y-%m-%d')})
+            start_date += timedelta(days=1)
+        return dates
+
+    
+    def stream_slices(
+        self,
+        sync_mode,
+        cursor_field: List[str] = None,
+        stream_state: Mapping[str, Any] = None
+        ) -> Iterable[Optional[Mapping[str, Any]]]:
+        start_date = datetime.strptime(stream_state['date'], '%Y-%m-%d') if stream_state and 'date' in stream_state else self.start_date
+        return self._chunk_date_range(start_date)
+
+
+    def next_page_token(self, response: requests.Response) -> Optional[Mapping[str, Any]]:
+        return None
+
+
+# *********************************************************************************** 
+# *********************************** CHECK PERSONAL ACCOUNT ************************
+# ***********************************************************************************
+class SourceTranferwiseHttpApiExample(AbstractSource):
+    
     def check_connection(self, logger, config) -> Tuple[bool, any]:
         #headers = {'Authorization': f'Bearer {config["api_token"]}'}
         #print("api token: ", config["api_token"])
@@ -266,19 +351,27 @@ class SourceTranferwiseHttpApiExample(AbstractSource):
         args = {'authenticator': auth, 'api_token': config["api_token"], 'start_date': start_date}
         return [
             TranferwiseProfilesStream(**args),
-            CheckAccountBalance(**args)
+            CheckPersonalAccountBalance(**args),
+            CheckBusinessAccountBalance(**args)
           ]
 
 
-# COMMANDS
-# docker run --rm airbyte/source-tranferwise-http-api-example:dev-v0.1.0 spec
+# ************************ COMMANDS *********************************
+# cd airbyte-projects/airbyte-test/airbyte-master/airbyte-integrations/connectors/source-tranferwise-http-api-example
+
+# source .venv/Scripts/activate
+
+# ROOT DIR: ./gradlew clean :airbyte-integrations:connectors:source-tranferwise-http-api-example:build
+
+# ************************ PYTHON *********************************
+# python main_dev.py spec
 # python main_dev.py check --config secrets/config.json
 # python main_dev.py check --config sample_files/config.json
 # python main_dev.py discover --config secrets/config.json
 # python main_dev.py read --config secrets/config.json --catalog sample_files/configured_catalog.json
 
-# cd airbyte-projects/airbyte-test/airbyte-master/airbyte-integrations/connectors/source-tranferwise-http-api-example
-# source .venv/Scripts/activate
+
+# ****************************** DOCKER ***************************
 # First build the container
 # docker build . -t airbyte/source-tranferwise-http-api-example:dev-v0.1.0
 
@@ -289,4 +382,3 @@ class SourceTranferwiseHttpApiExample(AbstractSource):
 # docker run --rm -v $(pwd)/secrets:/secrets -v $(pwd)/sample_files:/sample_files airbyte/source-tranferwise-http-api-example:dev-v0.1.0 read --config /secrets/config.json --catalog /sample_files/configured_catalog.json
 
 
-# ./gradlew clean :airbyte-integrations:connectors:source-tranferwise-http-api-example:build
