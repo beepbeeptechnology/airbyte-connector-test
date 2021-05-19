@@ -2,7 +2,7 @@
     "streams": [
       {
         "stream": {
-          "name": "tranferwise_profiles_stream",
+          "name": "profiles",
           "json_schema": {
             "$schema": "http://json-schema.org/draft-04/schema#",
             "type": "array",

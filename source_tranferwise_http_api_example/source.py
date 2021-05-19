@@ -22,32 +22,32 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
-from abc import ABC
+from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
 from typing import Any, Iterable, List, Mapping, MutableMapping, Optional, Tuple
 
 import requests
+import pprint
 
 from base_python import AbstractSource, HttpStream, Stream
 from base_python.cdk.streams.auth.core import NoAuth
 from base_python.cdk.streams.auth.token import TokenAuthenticator
+from requests.models import Response
 
 # *********************************************************************************** 
-# *********************************** TRANSFERWISE PROFILES *************************
+# *********************************** TRANSFERWISE STREAM *************************
 # ***********************************************************************************
-class TranferwiseProfilesStream(HttpStream):
+class TransferwiseStream(HttpStream, ABC):
     # The url base. Required.
-    # https://api.sandbox.transferwise.tech/v1/borderless-accounts?profileId=16178458
-    # https://api.sandbox.transferwise.tech/v3/profiles/16178458/borderless-accounts/25674/statement.json?
-    # currency=EUR&intervalStart=2018-03-01T00:00:00.000Z&intervalEnd=2018-03-15T23:59:59.999Z&type=COMPACT
     url_base = 'https://api.sandbox.transferwise.tech/v1/'
     primary_key = ""
-    #cursor_field = "date"
+
 
     def __init__(self, api_token: str, start_date: datetime, **kwargs):
-        super().__init__()
         self.api_token = api_token
         self.start_date = start_date
+        super().__init__()
+    
 
     def next_page_token(self, response: requests.Response) -> Optional[Mapping[str, Any]]:
         """
@@ -67,20 +67,25 @@ class TranferwiseProfilesStream(HttpStream):
         return None
 
 
-    def path(
-        self, 
-        stream_state: Mapping[str, Any] = None, 
-        stream_slice: Mapping[str, Any] = None, 
-        next_page_token: Mapping[str, Any] = None
-    ) -> str:
-        return "profiles"
+    #def path(
+    #    self, 
+    #    stream_state: Mapping[str, Any] = None, 
+    #    stream_slice: Mapping[str, Any] = None, 
+    #    next_page_token: Mapping[str, Any] = None
+    #) -> str:
+    #    return "profiles"
+
+    #@property
+    #@abstractmethod
+    #def personal_profile_id(self) -> str:
+    #    pass
     
 
     def request_headers(
-        self, stream_state: Mapping[str, Any], stream_slice: Mapping[str, Any] = None, next_page_token: Mapping[str, Any] = None
-    ) -> Mapping[str, Any]:
-        return {'Authorization': f'Bearer {self.api_token}'}
-        #return {}
+        self, **kwargs) -> Mapping[str, Any]:
+        if self.api_token:
+            return {'Authorization': f'Bearer {self.api_token}'}
+        return {}
 
 
     def parse_response(self, response: requests.Response, **kwargs) -> Iterable[Mapping]:
@@ -89,9 +94,18 @@ class TranferwiseProfilesStream(HttpStream):
         The response is a simple JSON whose schema matches our stream's schema exactly,
         so we just return a list containing the response, an iterable containing each record in the response
         """ 
-        #return [response.json()] # to parse the response from the API to match the schema of our schema .json file.
         return response.json()
+    
+    @property
+    @abstractmethod
+    def profilesID(self) -> Mapping[str, Any]:
+        """The personal profile type of the field in the response which contains the data"""
 
+    @property
+    @abstractmethod
+    def profilesID(self) -> Mapping[str, Any]:
+        """The business profile type of the field in the response which contains the data"""
+    
 
     def request_params(
             self,
@@ -140,10 +154,34 @@ class TranferwiseProfilesStream(HttpStream):
 
 
 # *********************************************************************************** 
+# *********************************** TRANSFERWISE PROFILES *************************
+# ***********************************************************************************
+class Profiles(TransferwiseStream):
+    profilesID = dict()
+    def __init__(self, api_token: str, start_date: datetime, **kwargs):
+        super().__init__(api_token, start_date, **kwargs)
+
+    
+    #print("Main class: type_personal / type_business: ", self.type_personal, type_business)
+    def path(self, **kwargs) -> str:
+        return "profiles"
+    
+    def parse_response(self, response: requests.Response, **kwargs) -> Iterable[Mapping]:
+        for profile in response.json():
+            if profile.get("type", None) == "personal":
+                Profiles.profilesID['personal_id'] = profile.get("id", None)
+
+            if profile.get("type", None) == "business":
+                Profiles.profilesID['business_id'] = profile.get("id", None)
+        #print("type_personal (ID) / type_business (ID): ", Profiles.profilesID['personal_id'], Profiles.profilesID['business_id'])
+        return response.json()
+
+
+# *********************************************************************************** 
 # *********************************** CHECK PERSONAL ACCOUNT ************************
 # ***********************************************************************************
-class CheckPersonalAccountBalance(TranferwiseProfilesStream):
-    
+class CheckPersonalAccountBalance(Profiles):
+
     def path(
         self, 
         stream_state: Mapping[str, Any] = None, 
@@ -166,7 +204,9 @@ class CheckPersonalAccountBalance(TranferwiseProfilesStream):
             next_page_token: Mapping[str, Any] = None,
     ) -> MutableMapping[str, Any]:
         # The api requires that we include the base currency as a query param so we do that in this method
-        return {'profileId': '16178458'} # "id": 16178458, "type": "personal" |  "id": 16178459, "type": "business"
+        personalProfileId = Profiles(api_token=self.api_token, start_date=self.start_date).profilesID['personal_id']
+        #print("CheckPersonalAccountBalance PERSONAL PROFILE ID", personalProfileId)
+        return {'profileId': personalProfileId} # "id": 16178458, "type": "personal" |  "id": 16178459, "type": "business"
         # return {'currency': 'EUR', 'intervalStart': '2018-03-01T00:00:00.000Z', 'intervalEnd': '2018-03-15T23:59:59.999Z', 'type': 'COMPACT'}
 
 
@@ -181,6 +221,7 @@ class CheckPersonalAccountBalance(TranferwiseProfilesStream):
         This method to define how a response is parsed.
         :return an iterable containing each record in the response
         """
+        #profile = Profiles(api_token=self.api_token, start_date=self.start_date).parse_response(response)
         return response.json() # to parse the response from the API to match the schema of our schema .json file.
 
 
@@ -242,7 +283,7 @@ class CheckPersonalAccountBalance(TranferwiseProfilesStream):
 # *********************************************************************************** 
 # ***********************************CHECK BUSINESS ACCOUNT *************************
 # ***********************************************************************************
-class CheckBusinessAccountBalance(TranferwiseProfilesStream):
+class CheckBusinessAccountBalance(Profiles):
     
     def path(
         self, 
@@ -266,8 +307,10 @@ class CheckBusinessAccountBalance(TranferwiseProfilesStream):
             next_page_token: Mapping[str, Any] = None,
     ) -> MutableMapping[str, Any]:
         # The api requires that we include the base currency as a query param so we do that in this method
-        return {'profileId': '16178459'} # "id": 16178458, "type": "personal" |  "id": 16178459, "type": "business"
-        # return {'currency': 'EUR', 'intervalStart': '2018-03-01T00:00:00.000Z', 'intervalEnd': '2018-03-15T23:59:59.999Z', 'type': 'COMPACT'}
+        businessProfileId = Profiles(api_token=self.api_token, start_date=self.start_date).profilesID['business_id']
+        #print("CheckBusinessAccountBalance BUSINESS PROFILE ID", businessProfileId)
+        return {'profileId': businessProfileId} # "id": 16178458, "type": "personal" |  "id": 16178459, "type": "business"
+        
 
 
     def parse_response(
@@ -348,9 +391,9 @@ class SourceTranferwiseHttpApiExample(AbstractSource):
         auth = TokenAuthenticator(token=config['api_token']) # Oauth2Authenticator is also available if you need oauth support
         # auth = NoAuth()
         start_date = datetime.strptime(config["start_date"], "%Y-%m-%d")
-        args = {'authenticator': auth, 'api_token': config["api_token"], 'start_date': start_date}
+        args = {'personal_profile_id':None, 'business_profile_id':None, 'authenticator': auth, 'api_token': config["api_token"], 'start_date': start_date}
         return [
-            TranferwiseProfilesStream(**args),
+            Profiles(authenticator=auth, api_token=config["api_token"], start_date=start_date),
             CheckPersonalAccountBalance(**args),
             CheckBusinessAccountBalance(**args)
           ]
